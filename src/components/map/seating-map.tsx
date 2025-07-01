@@ -43,6 +43,16 @@ export function SeatingMap() {
 
   // Handle seat click for details
   const handleSeatClick = useCallback((seat: SeatType, section: Section, row: Row) => {
+    const { isSeatSelected, selectSeat, deselectSeat } = useVenueStore.getState();
+    
+    // Handle seat selection/deselection logic same as DOM seats
+    if (isSeatSelected(seat.id)) {
+      deselectSeat(seat.id);
+    } else {
+      selectSeat(seat, section, row);
+    }
+    
+    // Also set details for sidebar display
     setSelectedSeatDetails({ seat, section, row });
   }, []);
 
@@ -219,51 +229,63 @@ export function SeatingMap() {
             onTouchEnd={handleTouchEnd}
             style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
           >
-            <div
-              style={{
-                width: venue.map.width,
-                height: venue.map.height,
-                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-                transformOrigin: 'top left',
-                position: 'relative',
-                margin: '50px',
-              }}
-            >
-              {/* Use Canvas for large venues (15000+ seats), DOM for smaller ones */}
-              {(() => {
-                const totalSeats = venue.sections.reduce((total, section) => 
-                  total + section.rows.reduce((rowTotal, row) => 
-                    rowTotal + row.seats.length, 0), 0);
-                
-                if (totalSeats > CANVAS_CONFIG.CANVAS_THRESHOLD) {
-                  return (
+            {/* Use Canvas for large venues (15000+ seats), DOM for smaller ones */}
+            {(() => {
+              const totalSeats = venue.sections.reduce((total, section) => 
+                total + section.rows.reduce((rowTotal, row) => 
+                  rowTotal + row.seats.length, 0), 0);
+              
+              if (totalSeats > CANVAS_CONFIG.CANVAS_THRESHOLD) {
+                return (
+                  <div
+                    style={{
+                      width: venue.map.width,
+                      height: venue.map.height,
+                      transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                      transformOrigin: 'top left',
+                      position: 'relative',
+                      margin: '50px',
+                    }}
+                  >
                     <CanvasSeatingMap
                       venue={venue}
                       heatMapMode={heatMapMode}
                       onSeatClick={handleSeatClick}
                       zoom={zoom}
-                      pan={pan}
                       isDragging={isDragging}
                     />
-                  );
-                } else {
-                  return venue.sections.map((section) =>
-                    section.rows.map((row) =>
-                      row.seats.map((seat) => (
-                        <Seat
-                          key={seat.id}
-                          seat={seat}
-                          section={section}
-                          row={row}
-                          heatMapMode={heatMapMode}
-                          onSeatClick={handleSeatClick}
-                        />
-                      ))
-                    )
-                  );
-                }
-              })()}
-            </div>
+                  </div>
+                );
+              } else {
+                return (
+                  <div
+                    style={{
+                      width: venue.map.width,
+                      height: venue.map.height,
+                      transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                      transformOrigin: 'top left',
+                      position: 'relative',
+                      margin: '50px',
+                    }}
+                  >
+                    {venue.sections.map((section) =>
+                      section.rows.map((row) =>
+                        row.seats.map((seat) => (
+                          <Seat
+                            key={seat.id}
+                            seat={seat}
+                            section={section}
+                            row={row}
+                            heatMapMode={heatMapMode}
+                            onSeatClick={handleSeatClick}
+                          />
+                        ))
+                      )
+                    )}
+                  </div>
+                );
+              }
+            })()}
           </div>
         </div>
 

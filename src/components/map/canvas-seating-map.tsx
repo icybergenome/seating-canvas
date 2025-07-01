@@ -10,7 +10,6 @@ interface CanvasSeatingMapProps {
   heatMapMode: boolean;
   onSeatClick: (seat: SeatType, section: Section, row: Row) => void;
   zoom: number;
-  pan: { x: number; y: number };
   isDragging: boolean;
 }
 
@@ -24,7 +23,6 @@ export function CanvasSeatingMap({
   heatMapMode,
   onSeatClick,
   zoom,
-  pan,
   isDragging
 }: CanvasSeatingMapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -75,16 +73,26 @@ export function CanvasSeatingMap({
     const canvas = canvasRef.current;
     if (!canvas) return null;
 
-    // Convert canvas coordinates to world coordinates
-    const worldX = (canvasX - pan.x) / zoom;
-    const worldY = (canvasY - pan.y) / zoom;
+    // Since canvas is now inside the transformed container, coordinates are simpler
+    const worldX = canvasX;
+    const worldY = canvasY;
+
+    // Calculate dynamic seat size for hit testing (same as rendering)
+    const effectiveSeatSize = Math.max(SEAT_SIZE * zoom, 8); // Minimum 8px for easier clicking
+    
+    // Use the same sizing logic as rendering for consistent hit testing
+    let hitTestSize = effectiveSeatSize;
+    if (zoom < VIEWPORT_CONFIG.LOD_ZOOM_THRESHOLD_ULTRA) {
+      // Ultra-low detail: use minimum size but make it easier to click
+      hitTestSize = Math.max(effectiveSeatSize * 0.6, 8);
+    }
 
     // Find seat at position
     for (const seatInfo of seatData.current) {
-      const seatLeft = seatInfo.x - SEAT_SIZE / 2;
-      const seatTop = seatInfo.y - SEAT_SIZE / 2;
-      const seatRight = seatLeft + SEAT_SIZE;
-      const seatBottom = seatTop + SEAT_SIZE;
+      const seatLeft = seatInfo.x - hitTestSize / 2;
+      const seatTop = seatInfo.y - hitTestSize / 2;
+      const seatRight = seatLeft + hitTestSize;
+      const seatBottom = seatTop + hitTestSize;
 
       if (worldX >= seatLeft && worldX <= seatRight && 
           worldY >= seatTop && worldY <= seatBottom) {
@@ -92,7 +100,7 @@ export function CanvasSeatingMap({
       }
     }
     return null;
-  }, [pan, zoom, SEAT_SIZE]);
+  }, [SEAT_SIZE, zoom]);
 
   // Handle canvas click
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -109,6 +117,13 @@ export function CanvasSeatingMap({
     }
   }, [getSeatAtPosition, onSeatClick, isSeatSelected]);
 
+  // Handle canvas wheel events for zoom (prevent default to avoid page scroll)
+  const handleCanvasWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Let the parent container handle zoom
+  }, []);
+
   // Optimized rendering function with frustum culling for 15,000+ seats
   const render = useCallback(() => {
     const canvas = canvasRef.current;
@@ -118,17 +133,15 @@ export function CanvasSeatingMap({
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Set up transformation matrix
+    // No transformation needed since parent container handles pan/zoom
     ctx.save();
-    ctx.translate(pan.x, pan.y);
-    ctx.scale(zoom, zoom);
 
-    // Frustum culling - only render visible seats for better performance
+    // Simple viewport bounds for culling (canvas coordinates)
     const viewportBounds = {
-      left: -pan.x / zoom - CANVAS_CONFIG.CULLING_BUFFER,
-      top: -pan.y / zoom - CANVAS_CONFIG.CULLING_BUFFER,
-      right: (-pan.x + canvas.width) / zoom + CANVAS_CONFIG.CULLING_BUFFER,
-      bottom: (-pan.y + canvas.height) / zoom + CANVAS_CONFIG.CULLING_BUFFER,
+      left: -CANVAS_CONFIG.CULLING_BUFFER,
+      top: -CANVAS_CONFIG.CULLING_BUFFER,
+      right: canvas.width + CANVAS_CONFIG.CULLING_BUFFER,
+      bottom: canvas.height + CANVAS_CONFIG.CULLING_BUFFER,
     };
 
     // Filter visible seats for performance
@@ -165,29 +178,32 @@ export function CanvasSeatingMap({
     seatsByColor.forEach((seats, color) => {
       ctx.fillStyle = color;
       
-      // Level-of-detail rendering based on zoom and seat count
-      const seatCount = seats.length;
+      // Calculate dynamic seat size based on zoom level to maintain visibility
+      const effectiveSeatSize = Math.max(SEAT_SIZE * zoom, 6); // Increased minimum to 6px for better visibility
       
-      // At very low zoom or high seat count, use optimized rendering
-      if (zoom < VIEWPORT_CONFIG.LOD_ZOOM_THRESHOLD_ULTRA || seatCount > CANVAS_CONFIG.LOD_ULTRA_THRESHOLD) {
-        // Ultra-low detail: single pixel points
+      // At very low zoom, use smaller but still visible seats
+      if (zoom < VIEWPORT_CONFIG.LOD_ZOOM_THRESHOLD_ULTRA) {
+        // Ultra-low detail: small but visible rectangles (minimum 6x6px)
+        const minSize = Math.max(effectiveSeatSize * 0.7, 6); // Increased minimum and ratio
         seats.forEach(seatInfo => {
-          ctx.fillRect(seatInfo.x, seatInfo.y, 2, 2);
+          const x = seatInfo.x - minSize / 2;
+          const y = seatInfo.y - minSize / 2;
+          ctx.fillRect(x, y, minSize, minSize);
         });
-      } else if (zoom < VIEWPORT_CONFIG.LOD_ZOOM_THRESHOLD_LOW || seatCount > CANVAS_CONFIG.LOD_LOW_THRESHOLD) {
-        // Low detail: simple rectangles
+      } else if (zoom < VIEWPORT_CONFIG.LOD_ZOOM_THRESHOLD_LOW) {
+        // Low detail: simple rectangles with dynamic sizing
         seats.forEach(seatInfo => {
-          const x = seatInfo.x - SEAT_SIZE / 2;
-          const y = seatInfo.y - SEAT_SIZE / 2;
-          ctx.fillRect(x, y, SEAT_SIZE, SEAT_SIZE);
+          const x = seatInfo.x - effectiveSeatSize / 2;
+          const y = seatInfo.y - effectiveSeatSize / 2;
+          ctx.fillRect(x, y, effectiveSeatSize, effectiveSeatSize);
         });
       } else {
         // High detail: rounded rectangles with proper size
         ctx.beginPath();
         seats.forEach(seatInfo => {
-          const x = seatInfo.x - SEAT_SIZE / 2;
-          const y = seatInfo.y - SEAT_SIZE / 2;
-          ctx.roundRect(x, y, SEAT_SIZE, SEAT_SIZE, 2);
+          const x = seatInfo.x - effectiveSeatSize / 2;
+          const y = seatInfo.y - effectiveSeatSize / 2;
+          ctx.roundRect(x, y, effectiveSeatSize, effectiveSeatSize, Math.max(2 * zoom, 1));
         });
         ctx.fill();
       }
@@ -200,19 +216,26 @@ export function CanvasSeatingMap({
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = Math.max(2 / zoom, 1); // Maintain visibility at all zoom levels
         ctx.beginPath();
-        const x = focusedSeatInfo.x - SEAT_SIZE / 2 - 2;
-        const y = focusedSeatInfo.y - SEAT_SIZE / 2 - 2;
+        
+        // Use the same dynamic sizing as the seats
+        const effectiveSeatSize = Math.max(SEAT_SIZE * zoom, 6);
+        const outlineSize = zoom < VIEWPORT_CONFIG.LOD_ZOOM_THRESHOLD_ULTRA ? 
+          Math.max(effectiveSeatSize * 0.7, 6) : effectiveSeatSize;
+        
+        const x = focusedSeatInfo.x - outlineSize / 2 - 2;
+        const y = focusedSeatInfo.y - outlineSize / 2 - 2;
+        
         if (zoom > VIEWPORT_CONFIG.LOD_ZOOM_THRESHOLD_LOW) {
-          ctx.roundRect(x, y, SEAT_SIZE + 4, SEAT_SIZE + 4, 4);
+          ctx.roundRect(x, y, outlineSize + 4, outlineSize + 4, Math.max(4 * zoom, 2));
         } else {
-          ctx.rect(x, y, SEAT_SIZE + 4, SEAT_SIZE + 4);
+          ctx.rect(x, y, outlineSize + 4, outlineSize + 4);
         }
         ctx.stroke();
       }
     }
 
     ctx.restore();
-  }, [pan, zoom, heatMapMode, isSeatSelected, focusedSeat, SEAT_SIZE]);
+  }, [heatMapMode, isSeatSelected, focusedSeat, zoom, SEAT_SIZE]);
 
   // Animation loop for smooth 60fps rendering
   useEffect(() => {
@@ -260,9 +283,13 @@ export function CanvasSeatingMap({
   return (
     <canvas
       ref={canvasRef}
-      className="w-full h-full"
-      style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+      className="w-full h-full block"
+      style={{ 
+        cursor: isDragging ? 'grabbing' : 'grab',
+        pointerEvents: 'auto' // Ensure canvas receives pointer events but doesn't block scrolling
+      }}
       onClick={handleCanvasClick}
+      onWheel={handleCanvasWheel}
     />
   );
 }

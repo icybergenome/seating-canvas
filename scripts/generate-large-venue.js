@@ -7,7 +7,7 @@ const generateLargeVenue = () => {
   const venue = {
     venueId: "stadium-megadome",
     name: "MegaDome Stadium - 15K+ Seats",
-    map: { width: 2000, height: 1500 },
+    map: { width: 3000, height: 2400 }, // Increased map size for better spacing
     sections: []
   };
 
@@ -15,15 +15,27 @@ const generateLargeVenue = () => {
   const priceTiers = [1, 2, 3];
   
   let seatCounter = 0;
+  // Redesigned layout with better spacing and no overlaps
   const sectionsConfig = [
-    { id: 'LOWER_A', label: 'Lower Bowl A', transform: { x: 100, y: 200 }, rows: 40, seatsPerRow: 50 },
-    { id: 'LOWER_B', label: 'Lower Bowl B', transform: { x: 100, y: 800 }, rows: 40, seatsPerRow: 50 },
-    { id: 'UPPER_A', label: 'Upper Bowl A', transform: { x: 100, y: 100 }, rows: 30, seatsPerRow: 60 },
-    { id: 'UPPER_B', label: 'Upper Bowl B', transform: { x: 100, y: 900 }, rows: 30, seatsPerRow: 60 },
-    { id: 'CLUB_A', label: 'Club Level A', transform: { x: 200, y: 300 }, rows: 20, seatsPerRow: 40 },
-    { id: 'CLUB_B', label: 'Club Level B', transform: { x: 200, y: 700 }, rows: 20, seatsPerRow: 40 },
-    { id: 'PREMIUM_A', label: 'Premium Section A', transform: { x: 300, y: 400 }, rows: 15, seatsPerRow: 30 },
-    { id: 'PREMIUM_B', label: 'Premium Section B', transform: { x: 300, y: 600 }, rows: 15, seatsPerRow: 30 },
+    // Lower Bowl sections - Left side
+    { id: 'LOWER_A', label: 'Lower Bowl A', transform: { x: 200, y: 400 }, rows: 35, seatsPerRow: 45 },
+    { id: 'LOWER_B', label: 'Lower Bowl B', transform: { x: 200, y: 1200 }, rows: 35, seatsPerRow: 45 },
+    
+    // Upper Bowl sections - Higher up, more seats per row
+    { id: 'UPPER_A', label: 'Upper Bowl A', transform: { x: 150, y: 150 }, rows: 25, seatsPerRow: 55 },
+    { id: 'UPPER_B', label: 'Upper Bowl B', transform: { x: 150, y: 1700 }, rows: 25, seatsPerRow: 55 },
+    
+    // Club Level - Center sections
+    { id: 'CLUB_A', label: 'Club Level A', transform: { x: 1400, y: 500 }, rows: 18, seatsPerRow: 38 },
+    { id: 'CLUB_B', label: 'Club Level B', transform: { x: 1400, y: 1100 }, rows: 18, seatsPerRow: 38 },
+    
+    // Premium sections - Best locations
+    { id: 'PREMIUM_A', label: 'Premium Section A', transform: { x: 1800, y: 700 }, rows: 12, seatsPerRow: 25 },
+    { id: 'PREMIUM_B', label: 'Premium Section B', transform: { x: 1800, y: 900 }, rows: 12, seatsPerRow: 25 },
+    
+    // Field Level sections - Close to action
+    { id: 'FIELD_A', label: 'Field Level A', transform: { x: 500, y: 800 }, rows: 8, seatsPerRow: 30 },
+    { id: 'FIELD_B', label: 'Field Level B', transform: { x: 500, y: 1000 }, rows: 8, seatsPerRow: 30 },
   ];
 
   sectionsConfig.forEach(sectionConfig => {
@@ -45,8 +57,10 @@ const generateLargeVenue = () => {
         const seat = {
           id: seatId,
           col: seatIndex,
-          x: seatIndex * 25 + (rowIndex % 2) * 12.5, // Slightly stagger seats for realism
-          y: rowIndex * 20,
+          // Improved spacing: 20px between seats, with slight staggering for realism
+          x: seatIndex * 20 + (rowIndex % 2) * 8, 
+          // 25px between rows for better vertical spacing
+          y: rowIndex * 25,
           priceTier: priceTiers[Math.floor(Math.random() * priceTiers.length)],
           status: seatStatuses[Math.floor(Math.random() * seatStatuses.length)]
         };
